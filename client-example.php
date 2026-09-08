@@ -124,6 +124,10 @@ $newMemberResp = $client->createMember(new CreateMemberRequest(
     anonymousName: 'Alex A.',
     personalEmail: 'alex@example.com',
     mobileNumber: '+1-555-0100',
+    landlineNumber: '+44 117 496 0000',
+    // Only meaningful alongside a landline — a member with only a mobile is
+    // "Mobile" whatever this says.
+    preferredContact: 'Landline',
     homeGroupId: 42,
     isGsr: true,
 ));
@@ -138,6 +142,9 @@ $updatedResp = $client->updateMember(id: 101, updateRequest: new UpdateMemberReq
     isGsr: false,
     intergroupPositionId: 5,
     intergroupPositionRotation: '2025-01-01',
+    // Clearing the landline moves the member back to Mobile server-side,
+    // so there is no need to send preferredContact as well.
+    landlineNumber: '',
 ));
 
 if ($updatedResp->success) {
