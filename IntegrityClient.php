@@ -236,6 +236,27 @@ class Member
          * its response. New servers always populate it.
          */
         public readonly ?GdprCompliance $gdprCompliance = null,
+        /**
+         * The member's landline number.
+         *
+         * Masked like the mobile unless the key holds `members:clear`, and
+         * empty against a server that pre-dates the field.
+         *
+         * Appended rather than placed beside mobileNumber for the same
+         * reason gdprCompliance was: every parameter before it is required,
+         * so inserting mid-list would rebind every positional argument
+         * after it.
+         */
+        public readonly string $landlineNumber = '',
+        /**
+         * Which of the two numbers to ring — "Mobile" or "Landline".
+         *
+         * Never masked: it names an option rather than a number. A member
+         * with no landline is always "Mobile"; the server settles that, so
+         * this can be read at face value. Left a string rather than an enum
+         * so a value from a newer server degrades instead of throwing.
+         */
+        public readonly string $preferredContact = 'Mobile',
     ) {}
 }
 
@@ -387,6 +408,10 @@ class UpdateMemberRequest
         public ?bool $isGsr = null,
         public ?int $intergroupPositionId = null,
         public ?string $intergroupPositionRotation = null, // Y-m-d or empty string
+        public ?string $landlineNumber = null,
+        // "Mobile" or "Landline". The server rejects anything else, and
+        // ignores this entirely for a member with no landline.
+        public ?string $preferredContact = null,
     ) {}
 }
 
@@ -399,6 +424,9 @@ class CreateMemberRequest
         public ?int $homeGroupId = null,
         public ?bool $isGsr = null,
         public ?int $intergroupPositionId = null,
+        public ?string $landlineNumber = null,
+        // "Mobile" or "Landline"; see UpdateMemberRequest.
+        public ?string $preferredContact = null,
     ) {}
 }
 
@@ -806,6 +834,12 @@ class IntegrityClient
         if ($updateRequest->intergroupPositionRotation !== null) {
             $payload['intergroup_position_rotation'] = $updateRequest->intergroupPositionRotation;
         }
+        if ($updateRequest->landlineNumber !== null) {
+            $payload['landline_number'] = $updateRequest->landlineNumber;
+        }
+        if ($updateRequest->preferredContact !== null) {
+            $payload['preferred_contact'] = $updateRequest->preferredContact;
+        }
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
             $this->request('POST', "/members/{$id}/update", body: $payload);
@@ -841,6 +875,12 @@ class IntegrityClient
         }
         if ($createRequest->intergroupPositionId !== null) {
             $payload['intergroup_position_id'] = $createRequest->intergroupPositionId;
+        }
+        if ($createRequest->landlineNumber !== null) {
+            $payload['landline_number'] = $createRequest->landlineNumber;
+        }
+        if ($createRequest->preferredContact !== null) {
+            $payload['preferred_contact'] = $createRequest->preferredContact;
         }
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
@@ -1394,6 +1434,11 @@ class IntegrityClient
             link: (string) ($data['link'] ?? ''),
             updated: (string) ($data['updated'] ?? ''),
             gdprCompliance: $gdprCompliance,
+            landlineNumber: (string) ($data['landline_number'] ?? ''),
+            // A server that pre-dates the field sends nothing, and a member
+            // with no landline has nothing to choose — "Mobile" is right for
+            // both, and matches what the server would have said.
+            preferredContact: (string) ($data['preferred_contact'] ?? 'Mobile'),
         );
     }
 
