@@ -678,8 +678,11 @@ class BatchResponse
  */
 class IntegrityBatch implements \Countable
 {
-    /** WordPress core's default limit (filter: rest_get_max_batch_size). */
-    public const DEFAULT_MAX_SIZE = 25;
+    /**
+     * The batch limit the Integrity plugin sets on the site. Core's own
+     * default is 25; Integrity raises it through rest_get_max_batch_size.
+     */
+    public const DEFAULT_MAX_SIZE = 256;
 
     /** @var list<array{path: string, body: array<string,mixed>, member: bool}> */
     private array $requests = [];
@@ -687,7 +690,7 @@ class IntegrityBatch implements \Countable
     /**
      * @param bool $requireAllValid Run nothing unless every request passes the
      *                              server's argument validation.
-     * @param int  $maxSize         Raise only if the site raises core's limit.
+     * @param int  $maxSize         Lower only if the site overrides Integrity's limit.
      */
     public function __construct(
         private readonly IntegrityClient $client,
@@ -1281,7 +1284,7 @@ class IntegrityClient
      * Start a batch of write requests. See IntegrityBatch.
      *
      * @param bool $requireAllValid Run nothing unless every request validates.
-     * @param int  $maxSize         The site's batch limit, if raised above core's 25.
+     * @param int  $maxSize         The site's batch limit, if it overrides Integrity's 256.
      */
     public function batch(bool $requireAllValid = false, int $maxSize = IntegrityBatch::DEFAULT_MAX_SIZE): IntegrityBatch
     {

@@ -68,8 +68,9 @@ if (!$result->success) {
 - `batch(requireAllValid: true)` runs nothing unless every request passes the
   server's validation; `$result->validationFailed` is then true and only the
   failing requests carry a response.
-- A batch holds at most 25 requests (core's default); queueing a 26th throws
-  `LengthException`. Pass `maxSize:` if the site raises the limit.
+- A batch holds at most 256 requests (the limit Integrity sets on the site);
+  queueing a 257th throws `LengthException`. Pass `maxSize:` if the site
+  overrides that limit.
 - Reads (`GET`) can't be batched — WordPress core doesn't allow it.
 
 Authentication is a Bearer token sent via the `Authorization` header. See
