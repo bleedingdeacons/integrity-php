@@ -43,6 +43,36 @@ foreach ($groups->data as $group) {
 }
 ```
 
+### Batching writes
+
+The write endpoints (member create / update / compliance and the intergroup
+register / unregister calls) can be sent together in one HTTP call through
+WordPress core's `/wp-json/batch/v1`. Requires Integrity 2.1+ on the site.
+
+```php
+$result = $client->batch()
+    ->updateMember(5, new UpdateMemberRequest(mobileNumber: '07700 900123'))
+    ->registerGroup(7, new RegisterGroupRequest(groupId: 12, gsrName: 'John D.'))
+    ->registerOfficer(7, new RegisterOfficerRequest(officerId: 3, positionName: 'Chair', officerName: 'Ann B.'))
+    ->send();
+
+if (!$result->success) {
+    foreach ($result->failures() as $i => $failed) {
+        echo "Request {$i}: {$failed->errorCode} — {$failed->errorMessage}\n";
+    }
+}
+```
+
+- `$result->responses` holds one `ApiResponse` per request, in queue order
+  (members come back hydrated as `Member`).
+- `batch(requireAllValid: true)` runs nothing unless every request passes the
+  server's validation; `$result->validationFailed` is then true and only the
+  failing requests carry a response.
+- A batch holds at most 256 requests (the limit Integrity sets on the site);
+  queueing a 257th throws `LengthException`. Pass `maxSize:` if the site
+  overrides that limit.
+- Reads (`GET`) can't be batched — WordPress core doesn't allow it.
+
 Authentication is a Bearer token sent via the `Authorization` header. See
 `client-example.php` for fuller usage across the other endpoints.
 

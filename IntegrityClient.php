@@ -413,6 +413,55 @@ class UpdateMemberRequest
         // ignores this entirely for a member with no landline.
         public ?string $preferredContact = null,
     ) {}
+
+    /**
+     * The JSON body for POST /members/{id}/update — supplied fields only.
+     *
+     * @return array<string,mixed>
+     */
+    public function toPayload(): array
+    {
+        $payload = [];
+
+        if ($this->anonymousName !== null) {
+            $payload['anonymous_name'] = $this->anonymousName;
+        }
+        if ($this->personalEmail !== null) {
+            $payload['personal_email'] = $this->personalEmail;
+        }
+        if ($this->mobileNumber !== null) {
+            $payload['mobile_number'] = $this->mobileNumber;
+        }
+        if ($this->showAnonymousName !== null) {
+            $payload['show_anonymous_name'] = $this->showAnonymousName;
+        }
+        if ($this->showMemberProfile !== null) {
+            $payload['show_member_profile'] = $this->showMemberProfile;
+        }
+        if ($this->anonymousProfile !== null) {
+            $payload['anonymous_profile'] = $this->anonymousProfile;
+        }
+        if ($this->homeGroupId !== null) {
+            $payload['home_group_id'] = $this->homeGroupId;
+        }
+        if ($this->isGsr !== null) {
+            $payload['is_gsr'] = $this->isGsr;
+        }
+        if ($this->intergroupPositionId !== null) {
+            $payload['intergroup_position_id'] = $this->intergroupPositionId;
+        }
+        if ($this->intergroupPositionRotation !== null) {
+            $payload['intergroup_position_rotation'] = $this->intergroupPositionRotation;
+        }
+        if ($this->landlineNumber !== null) {
+            $payload['landline_number'] = $this->landlineNumber;
+        }
+        if ($this->preferredContact !== null) {
+            $payload['preferred_contact'] = $this->preferredContact;
+        }
+
+        return $payload;
+    }
 }
 
 class CreateMemberRequest
@@ -428,6 +477,40 @@ class CreateMemberRequest
         // "Mobile" or "Landline"; see UpdateMemberRequest.
         public ?string $preferredContact = null,
     ) {}
+
+    /**
+     * The JSON body for POST /members/create.
+     *
+     * @return array<string,mixed>
+     */
+    public function toPayload(): array
+    {
+        $payload = ['anonymous_name' => $this->anonymousName];
+
+        if ($this->personalEmail !== null) {
+            $payload['personal_email'] = $this->personalEmail;
+        }
+        if ($this->mobileNumber !== null) {
+            $payload['mobile_number'] = $this->mobileNumber;
+        }
+        if ($this->homeGroupId !== null) {
+            $payload['home_group_id'] = $this->homeGroupId;
+        }
+        if ($this->isGsr !== null) {
+            $payload['is_gsr'] = $this->isGsr;
+        }
+        if ($this->intergroupPositionId !== null) {
+            $payload['intergroup_position_id'] = $this->intergroupPositionId;
+        }
+        if ($this->landlineNumber !== null) {
+            $payload['landline_number'] = $this->landlineNumber;
+        }
+        if ($this->preferredContact !== null) {
+            $payload['preferred_contact'] = $this->preferredContact;
+        }
+
+        return $payload;
+    }
 }
 
 /**
@@ -464,6 +547,31 @@ class RecordComplianceRequest
         public ?string $method = null,
         public ?int $policyId = null,
     ) {}
+
+    /**
+     * The JSON body for POST /members/{id}/compliance.
+     *
+     * @return array<string,mixed>
+     */
+    public function toPayload(): array
+    {
+        $payload = ['accepted' => $this->accepted];
+
+        if ($this->acceptedAt !== null) {
+            $payload['accepted_at'] = $this->acceptedAt;
+        }
+        if ($this->version !== null) {
+            $payload['version'] = $this->version;
+        }
+        if ($this->method !== null) {
+            $payload['method'] = $this->method;
+        }
+        if ($this->policyId !== null) {
+            $payload['policy_id'] = $this->policyId;
+        }
+
+        return $payload;
+    }
 }
 
 class RegisterGroupRequest
@@ -475,6 +583,18 @@ class RegisterGroupRequest
         public bool $gsrProxy = false,
         public string $gsrProxyName = '',
     ) {}
+
+    /** @return array<string,mixed> */
+    public function toPayload(): array
+    {
+        return [
+            'group_id' => $this->groupId,
+            'gsr_name' => $this->gsrName,
+            'member_id' => $this->memberId,
+            'gsr_proxy' => $this->gsrProxy,
+            'gsr_proxy_name' => $this->gsrProxyName,
+        ];
+    }
 }
 
 class RegisterOfficerRequest
@@ -484,6 +604,165 @@ class RegisterOfficerRequest
         public string $positionName,
         public string $officerName,
     ) {}
+
+    /** @return array<string,mixed> */
+    public function toPayload(): array
+    {
+        return [
+            'officer_id' => $this->officerId,
+            'position_name' => $this->positionName,
+            'officer_name' => $this->officerName,
+        ];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Batch
+// ---------------------------------------------------------------------------
+
+/**
+ * The result of a batch sent through WordPress core's /batch/v1.
+ *
+ * `responses` holds one ApiResponse per queued request, in the order they
+ * were queued. When the batch was sent with `requireAllValid` and any request
+ * failed validation, nothing ran: `validationFailed` is true, the requests
+ * that failed carry their error, and the rest are null.
+ *
+ * `errorCode` / `errorMessage` are set only when the batch as a whole was
+ * refused (e.g. more requests than the server's batch limit), in which case
+ * `responses` is empty.
+ */
+class BatchResponse
+{
+    /**
+     * @param list<ApiResponse|null> $responses
+     */
+    public function __construct(
+        public readonly bool $success,
+        public readonly array $responses,
+        public readonly bool $validationFailed,
+        public readonly int $httpStatus,
+        public readonly ?string $errorCode = null,
+        public readonly ?string $errorMessage = null,
+    ) {}
+
+    /**
+     * The responses that did not succeed, keyed by their position in the batch.
+     *
+     * @return array<int, ApiResponse>
+     */
+    public function failures(): array
+    {
+        return array_filter(
+            $this->responses,
+            static fn (?ApiResponse $r): bool => $r !== null && !$r->success,
+        );
+    }
+}
+
+/**
+ * A set of write requests sent to the server in one HTTP call.
+ *
+ * Only the write endpoints can be batched — WordPress core accepts POST, PUT,
+ * PATCH and DELETE in a batch, never GET. Build one with
+ * IntegrityClient::batch(), queue requests, then send():
+ *
+ *     $result = $client->batch()
+ *         ->updateMember(5, new UpdateMemberRequest(mobileNumber: '07700 900123'))
+ *         ->registerGroup(7, new RegisterGroupRequest(groupId: 12, gsrName: 'John D.'))
+ *         ->send();
+ *
+ * The API key is sent once, on the batch, and the server validates it once.
+ * Each request is still checked against its own permission and counts once
+ * against the key's rate limit.
+ */
+class IntegrityBatch implements \Countable
+{
+    /**
+     * The batch limit the Integrity plugin sets on the site. Core's own
+     * default is 25; Integrity raises it through rest_get_max_batch_size.
+     */
+    public const DEFAULT_MAX_SIZE = 256;
+
+    /** @var list<array{path: string, body: array<string,mixed>, member: bool}> */
+    private array $requests = [];
+
+    /**
+     * @param bool $requireAllValid Run nothing unless every request passes the
+     *                              server's argument validation.
+     * @param int  $maxSize         Lower only if the site overrides Integrity's limit.
+     */
+    public function __construct(
+        private readonly IntegrityClient $client,
+        private readonly bool $requireAllValid = false,
+        private readonly int $maxSize = self::DEFAULT_MAX_SIZE,
+    ) {}
+
+    public function updateMember(int $id, UpdateMemberRequest $req): static
+    {
+        return $this->add("/members/{$id}/update", $req->toPayload(), member: true);
+    }
+
+    public function createMember(CreateMemberRequest $req): static
+    {
+        return $this->add('/members/create', $req->toPayload(), member: true);
+    }
+
+    public function recordCompliance(int $id, RecordComplianceRequest $req): static
+    {
+        return $this->add("/members/{$id}/compliance", $req->toPayload(), member: true);
+    }
+
+    public function registerGroup(int $meetingId, RegisterGroupRequest $req): static
+    {
+        return $this->add("/intergroup-meetings/{$meetingId}/register-group", $req->toPayload());
+    }
+
+    public function unregisterGroup(int $meetingId, int $groupId): static
+    {
+        return $this->add("/intergroup-meetings/{$meetingId}/unregister-group", ['group_id' => $groupId]);
+    }
+
+    public function registerOfficer(int $meetingId, RegisterOfficerRequest $req): static
+    {
+        return $this->add("/intergroup-meetings/{$meetingId}/register-officer", $req->toPayload());
+    }
+
+    public function unregisterOfficer(int $meetingId, int $officerId): static
+    {
+        return $this->add("/intergroup-meetings/{$meetingId}/unregister-officer", ['officer_id' => $officerId]);
+    }
+
+    public function count(): int
+    {
+        return count($this->requests);
+    }
+
+    /**
+     * Send every queued request in one call.
+     *
+     * @throws IntegrityClientException On a transport or decoding failure
+     */
+    public function send(): BatchResponse
+    {
+        return $this->client->sendBatch($this->requests, $this->requireAllValid);
+    }
+
+    /**
+     * @param array<string,mixed> $body
+     */
+    private function add(string $path, array $body, bool $member = false): static
+    {
+        if (count($this->requests) >= $this->maxSize) {
+            throw new \LengthException(
+                "A batch holds at most {$this->maxSize} requests; send this one and start another."
+            );
+        }
+
+        $this->requests[] = ['path' => $path, 'body' => $body, 'member' => $member];
+
+        return $this;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +787,9 @@ class IntegrityClientException extends \RuntimeException
 
 class IntegrityClient
 {
-    private const API_PATH = '/wp-json/integrity/v1';
+    private const REST_ROOT = '/wp-json';
+    private const API_NAMESPACE = 'integrity/v1';
+    private const API_PATH = self::REST_ROOT . '/' . self::API_NAMESPACE;
     private const DEFAULT_TIMEOUT = 30;
 
     private string $baseUrl;
@@ -802,44 +1083,7 @@ class IntegrityClient
      */
     public function updateMember(int $id, UpdateMemberRequest $updateRequest): ApiResponse
     {
-        $payload = [];
-
-        if ($updateRequest->anonymousName !== null) {
-            $payload['anonymous_name'] = $updateRequest->anonymousName;
-        }
-        if ($updateRequest->personalEmail !== null) {
-            $payload['personal_email'] = $updateRequest->personalEmail;
-        }
-        if ($updateRequest->mobileNumber !== null) {
-            $payload['mobile_number'] = $updateRequest->mobileNumber;
-        }
-        if ($updateRequest->showAnonymousName !== null) {
-            $payload['show_anonymous_name'] = $updateRequest->showAnonymousName;
-        }
-        if ($updateRequest->showMemberProfile !== null) {
-            $payload['show_member_profile'] = $updateRequest->showMemberProfile;
-        }
-        if ($updateRequest->anonymousProfile !== null) {
-            $payload['anonymous_profile'] = $updateRequest->anonymousProfile;
-        }
-        if ($updateRequest->homeGroupId !== null) {
-            $payload['home_group_id'] = $updateRequest->homeGroupId;
-        }
-        if ($updateRequest->isGsr !== null) {
-            $payload['is_gsr'] = $updateRequest->isGsr;
-        }
-        if ($updateRequest->intergroupPositionId !== null) {
-            $payload['intergroup_position_id'] = $updateRequest->intergroupPositionId;
-        }
-        if ($updateRequest->intergroupPositionRotation !== null) {
-            $payload['intergroup_position_rotation'] = $updateRequest->intergroupPositionRotation;
-        }
-        if ($updateRequest->landlineNumber !== null) {
-            $payload['landline_number'] = $updateRequest->landlineNumber;
-        }
-        if ($updateRequest->preferredContact !== null) {
-            $payload['preferred_contact'] = $updateRequest->preferredContact;
-        }
+        $payload = $updateRequest->toPayload();
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
             $this->request('POST', "/members/{$id}/update", body: $payload);
@@ -859,29 +1103,7 @@ class IntegrityClient
      */
     public function createMember(CreateMemberRequest $createRequest): ApiResponse
     {
-        $payload = ['anonymous_name' => $createRequest->anonymousName];
-
-        if ($createRequest->personalEmail !== null) {
-            $payload['personal_email'] = $createRequest->personalEmail;
-        }
-        if ($createRequest->mobileNumber !== null) {
-            $payload['mobile_number'] = $createRequest->mobileNumber;
-        }
-        if ($createRequest->homeGroupId !== null) {
-            $payload['home_group_id'] = $createRequest->homeGroupId;
-        }
-        if ($createRequest->isGsr !== null) {
-            $payload['is_gsr'] = $createRequest->isGsr;
-        }
-        if ($createRequest->intergroupPositionId !== null) {
-            $payload['intergroup_position_id'] = $createRequest->intergroupPositionId;
-        }
-        if ($createRequest->landlineNumber !== null) {
-            $payload['landline_number'] = $createRequest->landlineNumber;
-        }
-        if ($createRequest->preferredContact !== null) {
-            $payload['preferred_contact'] = $createRequest->preferredContact;
-        }
+        $payload = $createRequest->toPayload();
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
             $this->request('POST', '/members/create', body: $payload);
@@ -908,20 +1130,7 @@ class IntegrityClient
      */
     public function recordCompliance(int $id, RecordComplianceRequest $req): ApiResponse
     {
-        $payload = ['accepted' => $req->accepted];
-
-        if ($req->acceptedAt !== null) {
-            $payload['accepted_at'] = $req->acceptedAt;
-        }
-        if ($req->version !== null) {
-            $payload['version'] = $req->version;
-        }
-        if ($req->method !== null) {
-            $payload['method'] = $req->method;
-        }
-        if ($req->policyId !== null) {
-            $payload['policy_id'] = $req->policyId;
-        }
+        $payload = $req->toPayload();
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
             $this->request('POST', "/members/{$id}/compliance", body: $payload);
@@ -994,13 +1203,7 @@ class IntegrityClient
      */
     public function registerGroup(int $meetingId, RegisterGroupRequest $req): ApiResponse
     {
-        $payload = [
-            'group_id' => $req->groupId,
-            'gsr_name' => $req->gsrName,
-            'member_id' => $req->memberId,
-            'gsr_proxy' => $req->gsrProxy,
-            'gsr_proxy_name' => $req->gsrProxyName,
-        ];
+        $payload = $req->toPayload();
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
             $this->request('POST', "/intergroup-meetings/{$meetingId}/register-group", body: $payload);
@@ -1040,11 +1243,7 @@ class IntegrityClient
      */
     public function registerOfficer(int $meetingId, RegisterOfficerRequest $req): ApiResponse
     {
-        $payload = [
-            'officer_id' => $req->officerId,
-            'position_name' => $req->positionName,
-            'officer_name' => $req->officerName,
-        ];
+        $payload = $req->toPayload();
 
         ['body' => $body, 'status' => $status, 'headers' => $headers] =
             $this->request('POST', "/intergroup-meetings/{$meetingId}/register-officer", body: $payload);
@@ -1078,6 +1277,104 @@ class IntegrityClient
     }
 
     // -----------------------------------------------------------------------
+    // Batch
+    // -----------------------------------------------------------------------
+
+    /**
+     * Start a batch of write requests. See IntegrityBatch.
+     *
+     * @param bool $requireAllValid Run nothing unless every request validates.
+     * @param int  $maxSize         The site's batch limit, if it overrides Integrity's 256.
+     */
+    public function batch(bool $requireAllValid = false, int $maxSize = IntegrityBatch::DEFAULT_MAX_SIZE): IntegrityBatch
+    {
+        return new IntegrityBatch($this, $requireAllValid, $maxSize);
+    }
+
+    /**
+     * Send queued requests to /wp-json/batch/v1. Called by IntegrityBatch::send().
+     *
+     * @internal
+     * @param  list<array{path: string, body: array<string,mixed>, member: bool}> $requests
+     * @throws IntegrityClientException
+     */
+    public function sendBatch(array $requests, bool $requireAllValid = false): BatchResponse
+    {
+        if ($requests === []) {
+            return new BatchResponse(success: true, responses: [], validationFailed: false, httpStatus: 0);
+        }
+
+        $payload = [
+            'validation' => $requireAllValid ? 'require-all-validate' : 'normal',
+            'requests' => array_map(
+                static fn (array $r): array => [
+                    'method' => 'POST',
+                    'path' => '/' . trim(self::API_NAMESPACE, '/') . $r['path'],
+                    // An empty array would encode as [] where core expects an object.
+                    'body' => (object) $r['body'],
+                ],
+                $requests,
+            ),
+        ];
+
+        ['body' => $body, 'status' => $status] =
+            $this->request('POST', '/batch/v1', body: $payload, apiRoot: self::REST_ROOT);
+
+        // Anything but 207 Multi-Status means the batch itself was refused.
+        if (!isset($body['responses']) || !is_array($body['responses'])) {
+            return new BatchResponse(
+                success: false,
+                responses: [],
+                validationFailed: false,
+                httpStatus: $status,
+                errorCode: $body['error']['code'] ?? $body['code'] ?? null,
+                errorMessage: $body['error']['message'] ?? $body['message'] ?? null,
+            );
+        }
+
+        $validationFailed = ($body['failed'] ?? null) === 'validation';
+        $responses = [];
+        $allSucceeded = !$validationFailed;
+
+        foreach ($requests as $i => $request) {
+            $item = $body['responses'][$i] ?? null;
+
+            if (!is_array($item)) {
+                $responses[] = null;
+                $allSucceeded = false;
+                continue;
+            }
+
+            $headers = array_change_key_case(
+                array_map(
+                    static fn ($v): string => is_array($v) ? implode(', ', $v) : (string) $v,
+                    is_array($item['headers'] ?? null) ? $item['headers'] : [],
+                ),
+                CASE_LOWER,
+            );
+
+            $response = $this->buildSingleResponse(
+                is_array($item['body'] ?? null) ? $item['body'] : [],
+                (int) ($item['status'] ?? 0),
+                $headers,
+                $request['member']
+                    ? fn (array $data) => $this->hydrateMember($data)
+                    : fn (array $data) => $data,
+            );
+
+            $allSucceeded = $allSucceeded && $response->success;
+            $responses[] = $response;
+        }
+
+        return new BatchResponse(
+            success: $allSucceeded,
+            responses: $responses,
+            validationFailed: $validationFailed,
+            httpStatus: $status,
+        );
+    }
+
+    // -----------------------------------------------------------------------
     // HTTP layer
     // -----------------------------------------------------------------------
 
@@ -1088,6 +1385,8 @@ class IntegrityClient
      * @param  string               $path    API path without base, e.g. "/groups"
      * @param  array<string,mixed>  $query   Query-string parameters (GET)
      * @param  array<string,mixed>  $body    JSON body parameters (POST)
+     * @param  string               $apiRoot Prefix after the site URL; the batch
+     *                                       endpoint lives under core's root
      * @return array{body: array<string,mixed>, status: int, headers: array<string,string>}
      * @throws IntegrityClientException
      */
@@ -1096,8 +1395,9 @@ class IntegrityClient
         string $path,
         array $query = [],
         array $body = [],
+        string $apiRoot = self::API_PATH,
     ): array {
-        $url = $this->baseUrl . self::API_PATH . $path;
+        $url = $this->baseUrl . $apiRoot . $path;
 
         if (!empty($query)) {
             $url .= '?' . http_build_query($query);
@@ -1190,11 +1490,14 @@ class IntegrityClient
         $rateLimit = $this->extractRateLimit($headers);
 
         if (!($body['success'] ?? false)) {
+            // Integrity's own errors are {success, error: {code, message}};
+            // a refusal from the permission check, and any error inside a
+            // batch, arrives in WordPress's {code, message, data} shape.
             return new ApiResponse(
                 success: false,
                 data: null,
-                errorCode: $body['error']['code'] ?? null,
-                errorMessage: $body['error']['message'] ?? null,
+                errorCode: $body['error']['code'] ?? $body['code'] ?? null,
+                errorMessage: $body['error']['message'] ?? $body['message'] ?? null,
                 httpStatus: $status,
                 rateLimit: $rateLimit,
             );
@@ -1230,8 +1533,8 @@ class IntegrityClient
                 success: false,
                 data: [],
                 meta: null,
-                errorCode: $body['error']['code'] ?? null,
-                errorMessage: $body['error']['message'] ?? null,
+                errorCode: $body['error']['code'] ?? $body['code'] ?? null,
+                errorMessage: $body['error']['message'] ?? $body['message'] ?? null,
                 httpStatus: $status,
                 rateLimit: $rateLimit,
             );
