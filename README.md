@@ -47,7 +47,9 @@ foreach ($groups->data as $group) {
 
 The write endpoints (member create / update / compliance and the intergroup
 register / unregister calls) can be sent together in one HTTP call through
-WordPress core's `/wp-json/batch/v1`. Requires Integrity 2.1+ on the site.
+WordPress core's `/wp-json/batch/v1`. Requires Integrity 2.1+ on the site;
+batches of more than 25 requests need Integrity 2.2+, which raises core's limit
+to 256.
 
 ```php
 $result = $client->batch()
